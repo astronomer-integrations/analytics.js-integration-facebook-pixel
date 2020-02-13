@@ -1,3 +1,27 @@
+2.5.0 / 2018-06-22
+==================
+
+  * Map productIds to content_ids param instead of product category.
+
+2.4.2 / 2018-04-02
+==================
+
+  * allow multiple PVs (#35)
+
+2.4.1 / 2017-08-23
+==================
+
+  * Fix typeerror for traits.gender.
+
+2.4.0 / 2017-06-08
+==================
+
+  * Fix an issue where properties for certain spec'd fb event fields (pertaining to travel events) that contain date strings were having their dates reconformed by Facade into an incompatible format for FB's API.
+
+2.3.0 / 2016-11-15
+==================
+
+  * Update value for Product Added and Product Viewed to take either properties.value or properties.price
 
 2.2.1 / 2016-09-13
 ==================

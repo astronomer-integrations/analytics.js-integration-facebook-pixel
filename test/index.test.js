@@ -14,7 +14,8 @@ describe('Facebook Pixel', function() {
     },
     standardEvents: {
       standardEvent: 'standard',
-      'booking completed': 'Purchase'
+      'booking completed': 'Purchase',
+      search: 'Search'
     },
     pixelId: '123123123',
     agent: 'test',
@@ -39,11 +40,14 @@ describe('Facebook Pixel', function() {
     });
   });
 
-  afterEach(function() {
-    analytics.restore();
-    analytics.reset();
-    facebookPixel.reset();
-    sandbox();
+  afterEach(function(done) {
+    analytics.waitForScripts(function() {
+      analytics.restore();
+      analytics.reset();
+      facebookPixel.reset();
+      sandbox();
+      done();
+    });
   });
 
   describe('before loading', function() {
@@ -70,6 +74,11 @@ describe('Facebook Pixel', function() {
       it('should set disablePushState to true', function() {
         analytics.initialize();
         analytics.equal(window.fbq.disablePushState, true);
+      });
+
+      it('should set allowDuplicatePageViews to true', function() {
+        analytics.initialize();
+        analytics.equal(window.fbq.allowDuplicatePageViews, true);
       });
 
       it('should create fbq object', function() {
@@ -216,14 +225,67 @@ describe('Facebook Pixel', function() {
             property: true
           });
         });
+
+        describe('Dyanmic Ads for Travel date parsing', function() {
+          it('should correctly pass in iso8601 formatted date objects', function() {
+            analytics.track('search', {
+              checkin_date: '2017-07-01T20:03:46Z'
+            });
+
+            analytics.called(window.fbq, 'track', 'Search', {
+              checkin_date: '2017-07-01'
+            });
+          });
+
+          it('should pass through strings that we did not recognize as dates as-is', function() {
+            analytics.track('search', {
+              checkin_date: '2017-06-23T15:30:00GMT'
+            });
+
+            analytics.called(window.fbq, 'track', 'Search', {
+              checkin_date: '2017-06-23T15:30:00GMT'
+            });
+          });
+        });
       });
 
       describe('segment ecommerce => FB product audiences', function() {
-        it('Product List Viewed', function() {
-          analytics.track('Product List Viewed', { category: 'Games' });
-          analytics.called(window.fbq, 'track', 'ViewContent', {
-            content_ids: ['Games'],
-            content_type: 'product_group'
+        describe('Product List Viewed', function() {
+          it('Should map content_ids parameter to product_ids and content_type to "product" if possible', function() {
+            analytics.track('Product List Viewed', {
+              category: 'Games', products: [
+                {
+                  product_id: '507f1f77bcf86cd799439011',
+                  sku: '45790-32',
+                  name: 'Monopoly: 3rd Edition',
+                  price: 19,
+                  position: 1,
+                  category: 'Games',
+                  url: 'https://www.example.com/product/path',
+                  image_url: 'https://www.example.com/product/path.jpg'
+                },
+                {
+                  product_id: '505bd76785ebb509fc183733',
+                  sku: '46493-32',
+                  name: 'Uno Card Game',
+                  price: 3,
+                  position: 2,
+                  category: 'Games'
+                }
+              ]
+            });
+            analytics.called(window.fbq, 'track', 'ViewContent', {
+              content_ids: ['507f1f77bcf86cd799439011', '505bd76785ebb509fc183733'],
+              content_type: 'product'
+            });
+          });
+
+          it('Should fallback on mapping content_ids to the product category and content_type to "product_group"', function() {
+            analytics.track('Product List Viewed', { category: 'Games' });
+            analytics.called(window.fbq, 'track', 'ViewContent', {
+              content_ids: ['Games'],
+              content_type: 'product_group'
+            });
           });
         });
 
@@ -232,10 +294,11 @@ describe('Facebook Pixel', function() {
             product_id: '507f1f77bcf86cd799439011',
             currency: 'USD',
             quantity: 1,
-            price: 24.75,
+            price: 44.33,
             name: 'my product',
             category: 'cat 1',
-            sku: 'p-298'
+            sku: 'p-298',
+            value: 24.75
           });
           analytics.called(window.fbq, 'track', 'ViewContent', {
             content_ids: ['507f1f77bcf86cd799439011'],
@@ -247,15 +310,38 @@ describe('Facebook Pixel', function() {
           });
         });
 
+        it('Should map properties.price to facebooks value if price is selected', function() {
+          facebookPixel.options.valueIdentifier = 'price';
+          analytics.track('Product Viewed', {
+            product_id: '507f1f77bcf86cd799439011',
+            currency: 'USD',
+            quantity: 1,
+            price: 44.33,
+            name: 'my product',
+            category: 'cat 1',
+            sku: 'p-298',
+            value: 24.75
+          });
+          analytics.called(window.fbq, 'track', 'ViewContent', {
+            content_ids: ['507f1f77bcf86cd799439011'],
+            content_type: 'product',
+            content_name: 'my product',
+            content_category: 'cat 1',
+            currency: 'USD',
+            value: '44.33'
+          });
+        });
+
         it('Adding to Cart', function() {
           analytics.track('Product Added', {
             product_id: '507f1f77bcf86cd799439011',
             currency: 'USD',
             quantity: 1,
-            price: 24.75,
+            price: 44.33,
             name: 'my product',
             category: 'cat 1',
-            sku: 'p-298'
+            sku: 'p-298',
+            value: 24.75
           });
           analytics.called(window.fbq, 'track', 'AddToCart', {
             content_ids: ['507f1f77bcf86cd799439011'],
@@ -264,6 +350,28 @@ describe('Facebook Pixel', function() {
             content_category: 'cat 1',
             currency: 'USD',
             value: '24.75'
+          });
+        });
+
+        it('Should map properties.price to facebooks value if price is selected', function() {
+          facebookPixel.options.valueIdentifier = 'price';
+          analytics.track('Product Added', {
+            product_id: '507f1f77bcf86cd799439011',
+            currency: 'USD',
+            quantity: 1,
+            price: 44.33,
+            name: 'my product',
+            category: 'cat 1',
+            sku: 'p-298',
+            value: 24.75
+          });
+          analytics.called(window.fbq, 'track', 'AddToCart', {
+            content_ids: ['507f1f77bcf86cd799439011'],
+            content_type: 'product',
+            content_name: 'my product',
+            content_category: 'cat 1',
+            currency: 'USD',
+            value: '44.33'
           });
         });
 
